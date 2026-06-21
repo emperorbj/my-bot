@@ -1,0 +1,14 @@
+1. uv init
+2. uv venv
+3. .\.venv\Scripts\Activate.ps1 (activate venv)
+select python interpreter vscode(ctrl + shift + p)
+uv add packages
+
+from qdrant_client import QdrantClient
+
+qdrant_client = QdrantClient(
+    url="https://240402ba-3ff2-4102-9640-94f888bc0276.sa-east-1-0.aws.cloud.qdrant.io:6333", 
+    api_key="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIiwic3ViamVjdCI6ImFwaS1rZXk6ZTZlMDNiYmItNTkyOS00MzgxLWEyZjYtZjMxMWEzMGNhNjRiIn0.nKJP9mqzuVlD9sXBK5sbbE3sBES0GSS_c-4FSQfkexA",
+)
+
+print(qdrant_client.get_collections())
