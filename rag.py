@@ -57,8 +57,8 @@ def chunk_docs(docs):
 # ---------------------------------------------------------------------
 # Qdrant collection management
 # ---------------------------------------------------------------------
-def get_embedding_dimension() -> int:
-    return len(get_embeddings().embed_query("dimension test"))
+# def get_embedding_dimension() -> int:
+#     return len(get_embeddings().embed_query("dimension test"))
 
 
 def ensure_document_id_index():
@@ -79,7 +79,7 @@ def create_collection_if_missing():
     existing = [c.name for c in collections]
 
     if config.COLLECTION_NAME not in existing:
-        vector_size = get_embedding_dimension()
+        vector_size = 384
         get_client().create_collection(
             collection_name=config.COLLECTION_NAME,
             vectors_config={
