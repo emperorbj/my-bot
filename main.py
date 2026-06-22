@@ -39,15 +39,16 @@ app.add_middleware(
 
 @app.on_event("startup")
 def on_startup():
+    logger.info("Application startup complete")
     # Make sure the collection + payload index exist before serving traffic.
     # This also patches collections created before the index fix was added.
-    try:
-        rag.create_collection_if_missing()
-    except Exception:
-        logger.exception(
-            "Could not ensure Qdrant collection/index on startup "
-            "(will retry on first upload)."
-        )
+    # try:
+    #     rag.create_collection_if_missing()
+    # except Exception:
+    #     logger.exception(
+    #         "Could not ensure Qdrant collection/index on startup "
+    #         "(will retry on first upload)."
+    #     )
 
 
 @app.get("/health")
