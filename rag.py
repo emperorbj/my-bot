@@ -3,6 +3,7 @@ Core RAG (Retrieval-Augmented Generation) logic: PDF loading, chunking,
 indexing into Qdrant (hybrid dense+sparse search), and question answering.
 """
 import uuid
+from functools import lru_cache
 from typing import List, Tuple
 
 from langchain_core.prompts import ChatPromptTemplate
@@ -16,12 +17,27 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from qdrant_client import QdrantClient, models
 from qdrant_client.models import Filter, FieldCondition, MatchValue
 
-import config
+import config  # change to `from app import config` if that's your import style
 
-# --- Singletons (loaded once at import time, reused across requests) ---
-embeddings = HuggingFaceEmbeddings(model_name=config.EMBEDDING_MODEL)
-sparse_embeddings = FastEmbedSparse(model_name=config.SPARSE_EMBEDDING_MODEL)
-client = QdrantClient(url=config.QDRANT_URL, api_key=config.QDRANT_API_KEY)
+
+# ---------------------------------------------------------------------
+# Lazy singletons — created on first use, NOT at import time.
+# This is what lets `uvicorn` bind the port immediately on Render instead
+# of hanging while torch/transformers/the embedding model download.
+# ---------------------------------------------------------------------
+@lru_cache
+def get_embeddings() -> HuggingFaceEmbeddings:
+    return HuggingFaceEmbeddings(model_name=config.EMBEDDING_MODEL)
+
+
+@lru_cache
+def get_sparse_embeddings() -> FastEmbedSparse:
+    return FastEmbedSparse(model_name=config.SPARSE_EMBEDDING_MODEL)
+
+
+@lru_cache
+def get_client() -> QdrantClient:
+    return QdrantClient(url=config.QDRANT_URL, api_key=config.QDRANT_API_KEY)
 
 
 # ---------------------------------------------------------------------
@@ -42,7 +58,7 @@ def chunk_docs(docs):
 # Qdrant collection management
 # ---------------------------------------------------------------------
 def get_embedding_dimension() -> int:
-    return len(embeddings.embed_query("dimension test"))
+    return len(get_embeddings().embed_query("dimension test"))
 
 
 def ensure_document_id_index():
@@ -51,7 +67,7 @@ def ensure_document_id_index():
     in scroll/search/retrieval. Safe to call repeatedly — Qdrant treats
     creating an index that already exists as a no-op.
     """
-    client.create_payload_index(
+    get_client().create_payload_index(
         collection_name=config.COLLECTION_NAME,
         field_name="metadata.document_id",
         field_schema=models.PayloadSchemaType.KEYWORD,
@@ -59,12 +75,12 @@ def ensure_document_id_index():
 
 
 def create_collection_if_missing():
-    collections = client.get_collections().collections
+    collections = get_client().get_collections().collections
     existing = [c.name for c in collections]
 
     if config.COLLECTION_NAME not in existing:
         vector_size = get_embedding_dimension()
-        client.create_collection(
+        get_client().create_collection(
             collection_name=config.COLLECTION_NAME,
             vectors_config={
                 "dense": models.VectorParams(
@@ -82,10 +98,10 @@ def create_collection_if_missing():
 
 def _vector_store() -> QdrantVectorStore:
     return QdrantVectorStore(
-        client=client,
+        client=get_client(),
         collection_name=config.COLLECTION_NAME,
-        embedding=embeddings,
-        sparse_embedding=sparse_embeddings,
+        embedding=get_embeddings(),
+        sparse_embedding=get_sparse_embeddings(),
         retrieval_mode=RetrievalMode.HYBRID,
         vector_name="dense",
         sparse_vector_name="sparse",
@@ -152,7 +168,7 @@ def search(query: str, document_id: str) -> List[dict]:
 
 def document_exists(document_id: str) -> bool:
     """Check whether any chunks are indexed for this document_id."""
-    results, _ = client.scroll(
+    results, _ = get_client().scroll(
         collection_name=config.COLLECTION_NAME,
         scroll_filter=Filter(
             must=[
@@ -174,7 +190,7 @@ def list_documents() -> List[dict]:
     limit = 200
 
     while True:
-        results, next_offset = client.scroll(
+        results, next_offset = get_client().scroll(
             collection_name=config.COLLECTION_NAME,
             with_payload=True,
             with_vectors=False,
